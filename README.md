@@ -79,3 +79,10 @@ engine.registerAgent(agent);
 
 // Define and run workflows...
 ```
+
+## Phase 2 Updates
+- **Registries**: Centralized management for Agents, Tools, and Plugins.
+- **Priority Scheduling**: Task queue with priority support and retries.
+- **Optimizers**: Integrated Cost, Latency, and Semantic Cache modules.
+- **AI Evaluation**: Built-in framework for assessing reasoning quality and safety.
+- **Extension SDKs**: Developer-friendly SDKs for creating agents and plugins.

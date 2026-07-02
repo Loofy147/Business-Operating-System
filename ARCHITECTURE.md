@@ -47,3 +47,31 @@ Every specialist agent is an instance of the `AgentKernel`, which implements:
 5. Specialist Agent (Lifecycle Execution) -> Result
 6. Result -> Reflection -> Memory Update -> Orchestrator
 7. Orchestrator -> Result -> User
+
+## Phase 2 Components
+
+### 1. Capability Registries
+Centralized registries for managing system extensions:
+- **Agent Registry**: Dynamic lookup of specialized agents.
+- **Tool Registry**: Inventory of available tools and their metadata.
+- **Model Registry**: Catalog of supported LLMs and routing policies.
+- **Plugin Registry**: Management of external capability modules.
+
+### 2. Advanced Scheduling
+- **Priority Queue**: Ensures critical tasks are processed first.
+- **Retry Logic**: Automated recovery for transient task failures.
+
+### 3. Optimization Modules
+- **Cost Optimizer**: Routes tasks to the most cost-effective models.
+- **Latency Optimizer**: Minimizes response time via provider selection.
+- **Semantic Cache**: Reduces redundant AI calls by caching common query results.
+
+### 4. AI Evaluation Framework
+- **Evaluator Engine**: Automated scoring of agent performance across accuracy, safety, and reasoning quality.
+
+### 5. Extension SDKs
+- **Agent SDK**: Standardized creation and configuration of agents.
+- **Plugin SDK**: Base classes and utilities for developing system extensions.
+
+### 6. Connectors
+- **SaaS Connectors**: Initial mock implementations for Slack and GitHub integrations.
