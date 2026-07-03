@@ -4,6 +4,8 @@ import { IPlanner, IReasoner, IModelRouter } from '../contracts/intelligence';
 import { IModelOptimizer } from '../contracts/optimization';
 import { IPolicyEngine } from '../contracts/governance';
 import { ShortTermMemory } from '../memory/short-term-memory';
+import { WorkingMemory } from '../memory/working-memory';
+import { LongTermMemory } from '../memory/long-term-memory';
 import { IEventBus } from '../contracts/event';
 import { EventType } from '../types/events';
 
@@ -11,7 +13,9 @@ export class AgentKernel implements IAgent {
   public metadata: AgentMetadata;
   public state: AgentState = AgentState.Idle;
   protected goals: Goal[] = [];
-  protected memory: ShortTermMemory = new ShortTermMemory();
+  protected workingMemory: WorkingMemory = new WorkingMemory();
+  protected shortTermMemory: ShortTermMemory;
+  protected longTermMemory: LongTermMemory = new LongTermMemory();
   protected tools: Map<string, Function> = new Map();
   protected policies: string[] = [];
   protected totalCost: number = 0;
@@ -38,6 +42,7 @@ export class AgentKernel implements IAgent {
     this.modelRouter = components?.modelRouter;
     this.modelOptimizer = components?.modelOptimizer;
     this.policyEngine = components?.policyEngine;
+    this.shortTermMemory = new ShortTermMemory(this.longTermMemory);
   }
 
   public addGoal(goal: Goal): void {
@@ -120,6 +125,9 @@ export class AgentKernel implements IAgent {
   async execute(task: Task): Promise<ExecutionResult> {
     this.selectModel(task);
 
+    // Task-scoped memory setup
+    this.workingMemory.set('taskId', task.id);
+
     let attempts = 0;
     const maxAttempts = 3;
     let result: ExecutionResult = { success: false, output: null, metrics: { latency: 0, tokens: 0, cost: 0 } };
@@ -147,7 +155,6 @@ export class AgentKernel implements IAgent {
 
       // Placeholder for actual execution logic
       const success = Math.random() > 0.2;
-      // Allow passing output via task for testing purposes
       const output = (task as any).testOutput || (success ? "Task completed successfully" : "Task failed");
 
       result = {
@@ -193,6 +200,10 @@ export class AgentKernel implements IAgent {
     await this.updateMemory(result);
 
     this.setState(AgentState.Finished);
+
+    // Explicit eviction of working memory
+    this.workingMemory.clear();
+
     setTimeout(() => this.setState(AgentState.Idle), 0);
 
     return result;
@@ -205,7 +216,14 @@ export class AgentKernel implements IAgent {
 
   protected async updateMemory(result: ExecutionResult): Promise<void> {
     this.setState(AgentState.MemoryUpdate);
-    this.memory.add({ result });
+
+    // Add to short-term memory
+    this.shortTermMemory.add(
+      Math.random().toString(),
+      { result, timestamp: Date.now() },
+      result.success ? 5 : 2 // Successes are slightly more "important"
+    );
+
     this.publishEvent(EventType.MemoryWrite, { result });
   }
 }

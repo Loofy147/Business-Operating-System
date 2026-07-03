@@ -29,4 +29,21 @@ describe('CostOptimizer', () => {
     const best = optimizer.optimize(reqs);
     expect(best.modelName).toBe('gemini-3.5-flash');
   });
+
+  it('should acknowledge registered models', () => {
+    const { modelRegistry } = require('../registry/capability-registry');
+    modelRegistry.register('custom-model', { provider: 'custom' });
+
+    const reqs: ModelRequirements = {
+      reasoningDepth: 'low',
+      visionRequired: false,
+      minContextWindow: 8000,
+      priority: 'cost'
+    };
+
+    const spy = jest.spyOn(console, 'log');
+    optimizer.optimize(reqs);
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('Checking'));
+    spy.mockRestore();
+  });
 });
