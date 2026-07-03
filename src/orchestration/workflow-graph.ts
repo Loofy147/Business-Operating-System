@@ -14,7 +14,11 @@ export class WorkflowGraph {
   public getExecutableTasks(): Task[] {
     return Array.from(this.tasks.values()).filter(task =>
       task.status === 'pending' &&
-      task.dependencies.every(depId => this.tasks.get(depId)?.status === 'completed')
+      task.dependencies.every(depId => {
+        const dep = this.tasks.get(depId);
+        // A task is executable if all dependencies are finished (completed OR failed)
+        return dep && (dep.status === 'completed' || dep.status === 'failed');
+      })
     );
   }
 

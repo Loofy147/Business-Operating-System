@@ -1,3 +1,4 @@
+import { EvaluatorEngine } from "../evaluation/evaluator-engine";
 import { AgentId, Goal, AgentMetadata, ExecutionResult, Task, ModelConfig, PolicyValidationResult } from '../types';
 import { IAgent, AgentState } from '../contracts/agent';
 import { IPlanner, IReasoner, IModelRouter } from '../contracts/intelligence';
@@ -155,7 +156,8 @@ export class AgentKernel implements IAgent {
 
       // Placeholder for actual execution logic
       const success = Math.random() > 0.2;
-      const output = (task as any).testOutput || (success ? "Task completed successfully" : "Task failed");
+      const reasoning = await this.reason(task);
+      const output = (task as any).testOutput || (success ? `Task completed successfully: ${reasoning}` : "Task failed");
 
       result = {
         success,
@@ -182,6 +184,15 @@ export class AgentKernel implements IAgent {
       }
 
       this.setState(AgentState.Validation);
+      if (result.success) {
+        const evalResult = EvaluatorEngine.evaluate(result.output, []);
+        console.log(`[${this.metadata.name}] Evaluation Score: ${evalResult.accuracy}`);
+        if (evalResult.accuracy < 0.6) {
+          console.log(`[${this.metadata.name}] Low accuracy detected, marking as failure for retry`);
+          result.success = false;
+          result.error = "Low accuracy result";
+        }
+      }
 
       if (!result.success) {
         if (attempts < maxAttempts) {
@@ -191,7 +202,7 @@ export class AgentKernel implements IAgent {
         } else {
           console.log(`[${this.metadata.name}] Execution failed after max attempts, refining strategy`);
           this.setState(AgentState.Refining);
-          await this.plan(task);
+          result.subtasks = await this.plan(task);
         }
       }
     } while (!result.success && attempts < maxAttempts);

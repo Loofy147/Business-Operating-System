@@ -15,6 +15,10 @@ export class PriorityQueue<T> {
     return this.queue.shift()?.item;
   }
 
+  public remove(predicate: (item: T) => boolean): void {
+    this.queue = this.queue.filter(pi => !predicate(pi.item));
+  }
+
   public get length(): number {
     return this.queue.length;
   }
