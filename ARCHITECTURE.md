@@ -52,6 +52,9 @@ Implemented in `src/agents/kernel.ts`, the kernel handles:
 - [x] **Advanced Scheduling**: Priority-based orchestration with task cancellation and dynamic subtask scheduling.
 - [x] **AI Evaluation Framework**: Automated scoring of reasoning quality and accuracy integrated into agent lifecycle.
 - [x] **Extension SDKs**: Initial SDKs for Agents and Plugins defined.
+- [x] **Knowledge Layer Enhancements**: Semantic search via VectorStore and pathfinding/relation queries in KnowledgeGraph.
+- [x] **Retrieval-Augmented Reasoning (RAG)**: AgentKernel integrated with knowledge sources for augmented context reasoning.
+- [x] **Integrated Observability**: Distributed tracing spans and metrics collection (latency/success) embedded in agent lifecycle.
 
 ## Data Flow
 1. **User Request** -> Gateway

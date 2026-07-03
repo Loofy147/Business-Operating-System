@@ -8,7 +8,26 @@ export class VectorStore implements IVectorStore {
   }
 
   public async search(vector: number[], limit: number): Promise<any[]> {
-    // Mock cosine similarity search
-    return Array.from(this.store.values()).slice(0, limit);
+    const results = Array.from(this.store.values())
+      .map(entry => ({
+        ...entry,
+        score: this.cosineSimilarity(vector, entry.vector)
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+
+    return results.map(r => r.metadata);
+  }
+
+  private cosineSimilarity(vecA: number[], vecB: number[]): number {
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    for (let i = 0; i < vecA.length; i++) {
+        dotProduct += (vecA[i] || 0) * (vecB[i] || 0);
+        normA += (vecA[i] || 0) * (vecA[i] || 0);
+        normB += (vecB[i] || 0) * (vecB[i] || 0);
+    }
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
   }
 }
