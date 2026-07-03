@@ -14,9 +14,9 @@ export class AgentKernel implements IAgent {
   protected policies: string[] = [];
   protected totalCost: number = 0;
 
-  private planner?: IPlanner;
-  private reasoner?: IReasoner;
-  private eventBus?: IEventBus;
+  private planner: IPlanner | undefined;
+  private reasoner: IReasoner | undefined;
+  private eventBus: IEventBus | undefined;
 
   constructor(metadata: AgentMetadata, components?: { planner?: IPlanner, reasoner?: IReasoner, eventBus?: IEventBus }) {
     this.metadata = metadata;
@@ -35,6 +35,14 @@ export class AgentKernel implements IAgent {
 
   public registerTool(name: string, fn: Function): void {
     this.tools.set(name, fn);
+  }
+
+  public addPolicy(policy: string): void {
+    this.policies.push(policy);
+  }
+
+  public getPolicies(): string[] {
+    return this.policies;
   }
 
   protected setState(newState: AgentState): void {
