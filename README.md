@@ -24,25 +24,32 @@ The AI-BOS is built on a multi-layered architecture designed for enterprise-grad
 
 - **Agent Kernel**: Unified architecture for all agents including reasoning, reflection, and self-evaluation.
 - **Event-Driven Orchestration**: Agents react automatically to changes via an Event Bus.
-- **Model Arbitration**: The Intelligence Layer defines the required model capabilities (e.g., reasoning depth, vision support), while the Optimization Layer selects the specific model/provider that satisfies those requirements at the lowest cost and latency.
-- **Plugin System**: Extensible capabilities for Finance, CRM, ERP, and more.
+- **Model Routing Arbitration**: Explicit separation of concerns between the **Intelligence Layer** (defines required model requirements: reasoning depth, vision support, context) and the **Optimization Layer** (selects the most cost-effective provider/model from the registry meeting those requirements).
+- **Lifecycle Feedback Loops**: State machine implementation of **Retrying** (for transient failures) and **Refining** (triggering strategy re-planning after exhaustion of retries) back-edges.
+- **Three-Gate Governance**: Mandatory validation gates at three critical points: **Request Validation** (risk scoring), **Pre-execution Check** (permissions), and **Post-execution Safety Check** (output scanning/alignment).
+- **Tiered Memory Consolidation**: Task-scoped **Working Memory**, LRU-based **Short-term Memory** with promotion thresholds, and persistent **Long-term Memory** archive.
 - **Autonomous Improvement Loop**: Continuous cycle of Observe -> Analyze -> Plan -> Execute -> Verify -> Reflect -> Optimize.
-- **Enterprise Governance**: Integrated policy engine and audit logs for secure operations.
 
 ## Project Structure
 
 ```
 src/
 ├── agents/        # Agent Kernel and specialist agent definitions
+├── connectors/    # SaaS connectors (Slack, GitHub)
+├── contracts/     # Well-defined TypeScript interfaces (Contract-First)
+├── evaluation/    # AI Performance Evaluation
 ├── gateway/       # API Gateway and authentication
-├── governance/    # Policy Engine and IAM
-├── intelligence/  # Model Router and model configurations
-├── memory/        # Memory connectors and knowledge graph
-├── observation/   # Metrics and logging
+├── governance/    # Policy Engine, Risk Assessment, and IAM
+├── intelligence/  # Model Router, Planner, Reasoner
+├── knowledge/     # Vector DB and Knowledge Graph connectors
+├── memory/        # Tiered memory (Working, Short-term, Long-term)
+├── observation/   # Metrics, Logging, and Traces
 ├── optimization/  # Cost and latency optimization
-├── orchestration/ # Event Bus and Agent Engine
+├── orchestration/ # Event Bus, Scheduler, and Agent Engine
 ├── plugins/       # Extensible plugin system
-├── types/         # Core TypeScript interfaces
+├── registry/      # Capability Registries (Agents, Tools, Models)
+├── sdk/           # Extension SDKs for Agents and Plugins
+├── types/         # Core TypeScript types and event schemas
 └── tests/         # Integration and unit tests
 ```
 
@@ -64,25 +71,21 @@ npm test
 
 ```typescript
 import { AgentKernel } from './src/agents/kernel';
-import { AgentEngine } from './src/orchestration/agent-engine';
-import { WorkflowGraph } from './src/orchestration/workflow-graph';
+import { ModelRouter } from './src/intelligence/model-router';
+import { CostOptimizer } from './src/optimization/cost-optimizer';
+import { PolicyEngine } from './src/governance/policy-engine';
 
 const agent = new AgentKernel({
   id: 'a1',
   name: 'Research Agent',
   role: 'Researcher',
   capabilities: ['web-search', 'analysis']
+}, {
+  modelRouter: new ModelRouter(),
+  modelOptimizer: new CostOptimizer(),
+  policyEngine: new PolicyEngine()
 });
 
-const engine = new AgentEngine();
-engine.registerAgent(agent);
-
-// Define and run workflows...
+// Execute tasks with integrated arbitration, feedback loops, and governance gates
+await agent.execute(task);
 ```
-
-## Phase 2 Updates
-- **Registries**: Centralized management for Agents, Tools, and Plugins.
-- **Priority Scheduling**: Task queue with priority support and retries.
-- **Optimizers**: Integrated Cost, Latency, and Semantic Cache modules.
-- **AI Evaluation**: Built-in framework for assessing reasoning quality and safety.
-- **Extension SDKs**: Developer-friendly SDKs for creating agents and plugins.
