@@ -15,8 +15,8 @@ The AI-BOS is built on a multi-layered architecture designed for enterprise-grad
 5.  **Specialist Agents**: Configured instances of the kernel (Research, Coding, Finance, etc.).
 6.  **Tool Layer**: Integrations with GitHub, Slack, Notion, Jira, ERP/CRM, and MCP Servers.
 7.  **Memory Layer**: Knowledge Graph, Vector DB, Semantic Cache, and Session Memory.
-8.  **Intelligence Layer**: Model Router (Gemini Pro/Flash), Local Models, and Specialized reasoning models.
-9.  **Optimization Layer**: Prompt optimization, Cost/Latency optimization, and Model Routing.
+8.  **Intelligence Layer**: Model Router (determines reasoning requirements and model capabilities).
+9.  **Optimization Layer**: Prompt optimization, Cost/Latency optimization, and Provider selection.
 10. **Observation Layer**: Logs, Metrics, Traces, and Agent Replay.
 11. **Governance Layer**: IAM, Policy Engine, Audit Logs, and Risk Assessment.
 
@@ -24,7 +24,7 @@ The AI-BOS is built on a multi-layered architecture designed for enterprise-grad
 
 - **Agent Kernel**: Unified architecture for all agents including reasoning, reflection, and self-evaluation.
 - **Event-Driven Orchestration**: Agents react automatically to changes via an Event Bus.
-- **Model Router**: Automatically chooses the best model (e.g., Gemini Pro for reasoning, Flash for speed) based on cost and complexity.
+- **Model Arbitration**: The Intelligence Layer defines the required model capabilities (e.g., reasoning depth, vision support), while the Optimization Layer selects the specific model/provider that satisfies those requirements at the lowest cost and latency.
 - **Plugin System**: Extensible capabilities for Finance, CRM, ERP, and more.
 - **Autonomous Improvement Loop**: Continuous cycle of Observe -> Analyze -> Plan -> Execute -> Verify -> Reflect -> Optimize.
 - **Enterprise Governance**: Integrated policy engine and audit logs for secure operations.
