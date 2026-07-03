@@ -9,6 +9,8 @@ export enum AgentState {
   Reflection = 'Reflection',
   Validation = 'Validation',
   MemoryUpdate = 'MemoryUpdate',
+  Refining = 'Refining',
+  Retrying = 'Retrying',
   Finished = 'Finished'
 }
 

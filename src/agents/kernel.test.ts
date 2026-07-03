@@ -1,45 +1,62 @@
 import { AgentKernel } from './kernel';
-import { AgentMetadata, Task } from '../types';
 import { AgentState } from '../contracts/agent';
+import { Task } from '../types';
+import { ModelRouter } from '../intelligence/model-router';
+import { CostOptimizer } from '../optimization/cost-optimizer';
 
-describe('AgentKernel State Machine', () => {
-  const metadata: AgentMetadata = {
-    id: 'test-agent',
-    name: 'Test Agent',
-    role: 'Tester',
-    capabilities: ['testing']
-  };
+describe('AgentKernel', () => {
+  let kernel: AgentKernel;
+  const metadata = { id: 'a1', name: 'Test Agent', role: 'Tester', capabilities: ['test'] };
 
-  it('should transition through states during execution', async () => {
-    const kernel = new AgentKernel(metadata);
-    const task: Task = {
-      id: 'task-1',
-      description: 'Run test',
-      status: 'pending',
-      dependencies: []
-    };
+  beforeEach(() => {
+    kernel = new AgentKernel(metadata, {
+      modelRouter: new ModelRouter(),
+      modelOptimizer: new CostOptimizer()
+    });
+  });
 
-    expect(kernel.state).toBe(AgentState.Idle);
-
-    const executePromise = kernel.execute(task);
-    // Since it's async, we can check state if it were slower, but here it finishes fast.
-    // We mainly want to ensure it ends in Idle after Finished.
-    await executePromise;
-
-    // We use a small timeout in the code to reset to Idle
-    await new Promise(resolve => setTimeout(resolve, 10));
+  it('should initialize in Idle state', () => {
     expect(kernel.state).toBe(AgentState.Idle);
   });
 
-  it('should transition to Planning state', async () => {
-    const kernel = new AgentKernel(metadata);
-    const task: Task = {
-      id: 'task-1',
-      description: 'Plan test',
-      status: 'pending',
-      dependencies: []
-    };
+  it('should transition to Planning when plan is called', async () => {
+    const task: Task = { id: 't1', description: 'test', status: 'pending', dependencies: [] };
     await kernel.plan(task);
     expect(kernel.state).toBe(AgentState.Planning);
+  });
+
+  it('should transition through states during execution', async () => {
+    const task: Task = { id: 't1', description: 'test', status: 'pending', dependencies: [] };
+
+    // Mock Math.random to always succeed for this test
+    const spy = jest.spyOn(Math, 'random').mockReturnValue(0.9);
+
+    await kernel.execute(task);
+    // Small delay to allow the Idle transition to happen
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(kernel.state).toBe(AgentState.Idle);
+
+    spy.mockRestore();
+  });
+
+  it('should retry on failure and eventually refine', async () => {
+    const task: Task = { id: 't1', description: 'test', status: 'pending', dependencies: [] };
+
+    // Mock Math.random to always fail
+    const spy = jest.spyOn(Math, 'random').mockReturnValue(0.1);
+
+    const states: AgentState[] = [];
+    const originalSetState = (kernel as any).setState.bind(kernel);
+    (kernel as any).setState = (state: AgentState) => {
+      states.push(state);
+      originalSetState(state);
+    };
+
+    await kernel.execute(task);
+
+    expect(states).toContain(AgentState.Retrying);
+    expect(states).toContain(AgentState.Refining);
+
+    spy.mockRestore();
   });
 });

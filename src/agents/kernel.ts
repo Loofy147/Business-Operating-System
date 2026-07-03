@@ -1,6 +1,7 @@
-import { AgentId, Goal, AgentMetadata, ExecutionResult, Task } from '../types';
+import { AgentId, Goal, AgentMetadata, ExecutionResult, Task, ModelConfig } from '../types';
 import { IAgent, AgentState } from '../contracts/agent';
-import { IPlanner, IReasoner } from '../contracts/intelligence';
+import { IPlanner, IReasoner, IModelRouter } from '../contracts/intelligence';
+import { IModelOptimizer } from '../contracts/optimization';
 import { ShortTermMemory } from '../memory/short-term-memory';
 import { IEventBus } from '../contracts/event';
 import { EventType } from '../types/events';
@@ -17,12 +18,22 @@ export class AgentKernel implements IAgent {
   private planner: IPlanner | undefined;
   private reasoner: IReasoner | undefined;
   private eventBus: IEventBus | undefined;
+  private modelRouter: IModelRouter | undefined;
+  private modelOptimizer: IModelOptimizer | undefined;
 
-  constructor(metadata: AgentMetadata, components?: { planner?: IPlanner, reasoner?: IReasoner, eventBus?: IEventBus }) {
+  constructor(metadata: AgentMetadata, components?: {
+    planner?: IPlanner,
+    reasoner?: IReasoner,
+    eventBus?: IEventBus,
+    modelRouter?: IModelRouter,
+    modelOptimizer?: IModelOptimizer
+  }) {
     this.metadata = metadata;
     this.planner = components?.planner;
     this.reasoner = components?.reasoner;
     this.eventBus = components?.eventBus;
+    this.modelRouter = components?.modelRouter;
+    this.modelOptimizer = components?.modelOptimizer;
   }
 
   public addGoal(goal: Goal): void {
@@ -80,24 +91,58 @@ export class AgentKernel implements IAgent {
     return result;
   }
 
+  protected selectModel(task: Task): ModelConfig | undefined {
+    if (this.modelRouter && this.modelOptimizer) {
+      const requirements = this.modelRouter.selectRequirements(task, {});
+      const config = this.modelOptimizer.optimize(requirements);
+      console.log(`[${this.metadata.name}] Selected model ${config.modelName} via arbitration`);
+      return config;
+    }
+    return undefined;
+  }
+
   async execute(task: Task): Promise<ExecutionResult> {
-    this.setState(AgentState.ToolSelection);
-    this.setState(AgentState.Execution);
+    this.selectModel(task);
 
-    const startTime = Date.now();
-    const success = true;
-    const output = "Task completed successfully";
+    let attempts = 0;
+    const maxAttempts = 3;
+    let result: ExecutionResult;
 
-    this.setState(AgentState.Validation);
-    const result: ExecutionResult = {
-      success,
-      output,
-      metrics: {
-        latency: Date.now() - startTime,
-        tokens: 0,
-        cost: 0
+    do {
+      attempts++;
+      this.setState(AgentState.ToolSelection);
+      this.setState(AgentState.Execution);
+
+      const startTime = Date.now();
+      // Placeholder for actual execution logic
+      const success = Math.random() > 0.2; // Simulating intermittent failure
+      const output = success ? "Task completed successfully" : "Task failed";
+
+      this.setState(AgentState.Validation);
+      result = {
+        success,
+        output,
+        metrics: {
+          latency: Date.now() - startTime,
+          tokens: 0,
+          cost: 0
+        }
+      };
+
+      if (!result.success) {
+        if (attempts < maxAttempts) {
+          console.log(`[${this.metadata.name}] Execution failed, retrying (attempt ${attempts}/${maxAttempts})`);
+          this.setState(AgentState.Retrying);
+          // Potential back-off or strategy refinement here
+          await new Promise(resolve => setTimeout(resolve, 100)); // Small delay for retry
+        } else {
+          console.log(`[${this.metadata.name}] Execution failed after max attempts, refining strategy`);
+          this.setState(AgentState.Refining);
+          // In a real scenario, this might loop back to planning
+          await this.plan(task); // Re-plan if everything else fails
+        }
       }
-    };
+    } while (!result.success && attempts < maxAttempts);
 
     await this.reflect(result);
     await this.updateMemory(result);

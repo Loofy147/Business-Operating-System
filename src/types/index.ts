@@ -39,6 +39,13 @@ export interface AgentMetadata {
   capabilities: string[];
 }
 
+export interface ModelRequirements {
+  reasoningDepth: 'low' | 'medium' | 'high';
+  visionRequired: boolean;
+  minContextWindow: number;
+  priority: 'cost' | 'latency' | 'accuracy';
+}
+
 export interface ModelConfig {
   modelName: string;
   provider: string;
