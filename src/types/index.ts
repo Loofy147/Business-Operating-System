@@ -63,3 +63,17 @@ export interface ExecutionResult {
     cost: number;
   };
 }
+
+export interface RiskAssessment {
+  privacyScore: number;
+  operationalScore: number;
+  financialScore: number;
+  safetyScore: number;
+}
+
+export interface PolicyValidationResult {
+  allowed: boolean;
+  reason?: string;
+  riskAssessment?: RiskAssessment;
+  requiresHITL?: boolean;
+}

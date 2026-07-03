@@ -3,6 +3,7 @@ import { AgentState } from '../contracts/agent';
 import { Task } from '../types';
 import { ModelRouter } from '../intelligence/model-router';
 import { CostOptimizer } from '../optimization/cost-optimizer';
+import { PolicyEngine } from '../governance/policy-engine';
 
 describe('AgentKernel', () => {
   let kernel: AgentKernel;
@@ -56,6 +57,34 @@ describe('AgentKernel', () => {
 
     expect(states).toContain(AgentState.Retrying);
     expect(states).toContain(AgentState.Refining);
+
+    spy.mockRestore();
+  });
+
+  it('should reject tasks rejected by PolicyEngine', async () => {
+    const policyEngine = new PolicyEngine();
+    kernel = new AgentKernel(metadata, { policyEngine });
+
+    const task: Task = { id: 't1', description: 'restricted action', status: 'pending', dependencies: [] };
+    await expect(kernel.plan(task)).rejects.toThrow('Task rejected by Policy Engine');
+  });
+
+  it('should fail execution if post-execution check fails', async () => {
+    const policyEngine = new PolicyEngine();
+    kernel = new AgentKernel(metadata, {
+      policyEngine,
+      modelRouter: new ModelRouter(),
+      modelOptimizer: new CostOptimizer()
+    });
+
+    const task: any = { id: 't1', description: 'test', status: 'pending', dependencies: [], testOutput: 'Here is sensitive data' };
+
+    // Mock success of execution logic
+    const spy = jest.spyOn(Math, 'random').mockReturnValue(0.9);
+
+    const result = await kernel.execute(task);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('sensitive data exposure');
 
     spy.mockRestore();
   });

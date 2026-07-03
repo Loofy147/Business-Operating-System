@@ -1,7 +1,8 @@
-import { AgentId, Goal, AgentMetadata, ExecutionResult, Task, ModelConfig } from '../types';
+import { AgentId, Goal, AgentMetadata, ExecutionResult, Task, ModelConfig, PolicyValidationResult } from '../types';
 import { IAgent, AgentState } from '../contracts/agent';
 import { IPlanner, IReasoner, IModelRouter } from '../contracts/intelligence';
 import { IModelOptimizer } from '../contracts/optimization';
+import { IPolicyEngine } from '../contracts/governance';
 import { ShortTermMemory } from '../memory/short-term-memory';
 import { IEventBus } from '../contracts/event';
 import { EventType } from '../types/events';
@@ -20,13 +21,15 @@ export class AgentKernel implements IAgent {
   private eventBus: IEventBus | undefined;
   private modelRouter: IModelRouter | undefined;
   private modelOptimizer: IModelOptimizer | undefined;
+  private policyEngine: IPolicyEngine | undefined;
 
   constructor(metadata: AgentMetadata, components?: {
     planner?: IPlanner,
     reasoner?: IReasoner,
     eventBus?: IEventBus,
     modelRouter?: IModelRouter,
-    modelOptimizer?: IModelOptimizer
+    modelOptimizer?: IModelOptimizer,
+    policyEngine?: IPolicyEngine
   }) {
     this.metadata = metadata;
     this.planner = components?.planner;
@@ -34,6 +37,7 @@ export class AgentKernel implements IAgent {
     this.eventBus = components?.eventBus;
     this.modelRouter = components?.modelRouter;
     this.modelOptimizer = components?.modelOptimizer;
+    this.policyEngine = components?.policyEngine;
   }
 
   public addGoal(goal: Goal): void {
@@ -76,6 +80,18 @@ export class AgentKernel implements IAgent {
   }
 
   async plan(task: Task): Promise<Task[]> {
+    // Gate 1: Request Validation
+    if (this.policyEngine) {
+      const validation = this.policyEngine.validateRequest(task);
+      if (!validation.allowed) {
+        throw new Error(`Task rejected by Policy Engine: ${validation.reason}`);
+      }
+      if (validation.requiresHITL) {
+        console.log(`[${this.metadata.name}] Task requires HITL approval: ${validation.reason}`);
+        // Placeholder for HITL wait logic
+      }
+    }
+
     this.setState(AgentState.Planning);
     if (this.planner) {
       return await this.planner.createPlan(task);
@@ -106,19 +122,34 @@ export class AgentKernel implements IAgent {
 
     let attempts = 0;
     const maxAttempts = 3;
-    let result: ExecutionResult;
+    let result: ExecutionResult = { success: false, output: null, metrics: { latency: 0, tokens: 0, cost: 0 } };
 
     do {
       attempts++;
       this.setState(AgentState.ToolSelection);
+
+      // Gate 2: Pre-execution Check
+      if (this.policyEngine) {
+        const validation = this.policyEngine.preExecutionCheck(task, {});
+        if (!validation.allowed) {
+          result = {
+            success: false,
+            output: null,
+            error: `Pre-execution check failed: ${validation.reason}`,
+            metrics: { latency: 0, tokens: 0, cost: 0 }
+          };
+          break;
+        }
+      }
+
       this.setState(AgentState.Execution);
-
       const startTime = Date.now();
-      // Placeholder for actual execution logic
-      const success = Math.random() > 0.2; // Simulating intermittent failure
-      const output = success ? "Task completed successfully" : "Task failed";
 
-      this.setState(AgentState.Validation);
+      // Placeholder for actual execution logic
+      const success = Math.random() > 0.2;
+      // Allow passing output via task for testing purposes
+      const output = (task as any).testOutput || (success ? "Task completed successfully" : "Task failed");
+
       result = {
         success,
         output,
@@ -129,17 +160,31 @@ export class AgentKernel implements IAgent {
         }
       };
 
+      // Gate 3: Post-execution Safety Check
+      if (this.policyEngine && result.success) {
+        const validation = this.policyEngine.postExecutionCheck(result, {});
+        if (!validation.allowed) {
+          console.log(`[${this.metadata.name}] Post-execution safety check failed: ${validation.reason}`);
+          result = {
+            success: false,
+            output: null,
+            error: validation.reason,
+            metrics: result.metrics
+          };
+        }
+      }
+
+      this.setState(AgentState.Validation);
+
       if (!result.success) {
         if (attempts < maxAttempts) {
           console.log(`[${this.metadata.name}] Execution failed, retrying (attempt ${attempts}/${maxAttempts})`);
           this.setState(AgentState.Retrying);
-          // Potential back-off or strategy refinement here
-          await new Promise(resolve => setTimeout(resolve, 100)); // Small delay for retry
+          await new Promise(resolve => setTimeout(resolve, 100));
         } else {
           console.log(`[${this.metadata.name}] Execution failed after max attempts, refining strategy`);
           this.setState(AgentState.Refining);
-          // In a real scenario, this might loop back to planning
-          await this.plan(task); // Re-plan if everything else fails
+          await this.plan(task);
         }
       }
     } while (!result.success && attempts < maxAttempts);
