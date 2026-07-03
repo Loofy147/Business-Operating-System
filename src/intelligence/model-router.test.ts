@@ -2,25 +2,31 @@ import { ModelRouter } from './model-router';
 import { Task } from '../types';
 
 describe('ModelRouter', () => {
-  it('should route complex tasks to gemini-3.1-pro', () => {
+  let router: ModelRouter;
+
+  beforeEach(() => {
+    router = new ModelRouter();
+  });
+
+  it('should require high reasoning depth for complex tasks', () => {
     const task: Task = {
       id: 't1',
       description: 'Perform complex reasoning about the future of AI in the enterprise.',
       status: 'pending',
       dependencies: []
     };
-    const config = ModelRouter.selectModel(task);
-    expect(config.modelName).toBe('gemini-3.1-pro');
+    const reqs = router.selectRequirements(task);
+    expect(reqs.reasoningDepth).toBe('high');
   });
 
-  it('should route simple tasks to gemini-3.5-flash', () => {
+  it('should require vision for vision tasks', () => {
     const task: Task = {
       id: 't2',
-      description: 'Hello',
+      description: 'Describe this image vision task',
       status: 'pending',
       dependencies: []
     };
-    const config = ModelRouter.selectModel(task);
-    expect(config.modelName).toBe('gemini-3.5-flash');
+    const reqs = router.selectRequirements(task);
+    expect(reqs.visionRequired).toBe(true);
   });
 });

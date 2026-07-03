@@ -39,6 +39,13 @@ export interface AgentMetadata {
   capabilities: string[];
 }
 
+export interface ModelRequirements {
+  reasoningDepth: 'low' | 'medium' | 'high';
+  visionRequired: boolean;
+  minContextWindow: number;
+  priority: 'cost' | 'latency' | 'accuracy';
+}
+
 export interface ModelConfig {
   modelName: string;
   provider: string;
@@ -55,4 +62,18 @@ export interface ExecutionResult {
     tokens: number;
     cost: number;
   };
+}
+
+export interface RiskAssessment {
+  privacyScore: number;
+  operationalScore: number;
+  financialScore: number;
+  safetyScore: number;
+}
+
+export interface PolicyValidationResult {
+  allowed: boolean;
+  reason?: string;
+  riskAssessment?: RiskAssessment;
+  requiresHITL?: boolean;
 }

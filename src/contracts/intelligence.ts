@@ -1,7 +1,7 @@
-import { ModelConfig, Task } from '../types';
+import { ModelConfig, Task, ModelRequirements } from '../types';
 
 export interface IModelRouter {
-  selectModel(task: Task, context: any): ModelConfig;
+  selectRequirements(task: Task, context: any): ModelRequirements;
 }
 
 export interface IReasoner {
