@@ -8,27 +8,27 @@ The AI-BOS is built on a multi-layered architecture designed for enterprise-grad
 
 ### Layers
 
-1.  **Gateway Layer**: Authentication, Rate Limiting, Multi-tenancy, and Session Routing.
+1.  **Gateway Layer**: Authentication, Rate Limiting (Session-based), and Traceability.
 2.  **Executive Agent**: Lead executive agent for high-level coordination.
-3.  **Orchestration Layer**: Event Bus, Agent Engine, Workflow Graph, and Task Scheduling.
-4.  **Agent Kernel**: Common internal architecture for all specialist agents (Identity, Goals, Planner, Memory, tools, etc.).
-5.  **Specialist Agents**: Configured instances of the kernel (Research, Coding, Finance, etc.).
-6.  **Tool Layer**: Integrations with GitHub, Slack, Notion, Jira, ERP/CRM, and MCP Servers.
-7.  **Memory Layer**: Knowledge Graph, Vector DB, Semantic Cache, and Session Memory.
-8.  **Intelligence Layer**: Model Router (determines reasoning requirements and model capabilities).
+3.  **Orchestration Layer**: Event Bus, Agent Engine (with Plugin lifecycle), Workflow Graph, and Task Scheduling.
+4.  **Agent Kernel**: Common internal architecture for all specialist agents (Identity, Goals, Multi-tier Memory, Automated Tool Selection).
+5.  **Specialist Agents**: Configured instances of the kernel with capability-based routing.
+6.  **Tool Layer**: Connectors (Slack, GitHub) adapted as functional ITool instances.
+7.  **Memory Layer**: Knowledge Graph, Vector DB, Semantic Cache, and Tiered Session Memory.
+8.  **Intelligence Layer**: Model Router (Arbitration) and context-aware Reasoner/Planner.
 9.  **Optimization Layer**: Prompt optimization, Cost/Latency optimization, and Provider selection.
-10. **Observation Layer**: Logs, Metrics, Traces, and Agent Replay.
-11. **Governance Layer**: IAM, Policy Engine, Audit Logs, and Risk Assessment.
+10. **Observation Layer**: Logs, Metrics (via Plugin), Traces (End-to-end), and Agent Replay.
+11. **Governance Layer**: IAM (RBAC), Policy Engine, and HITL (Human-In-The-Loop) Registry.
 
 ## Key Features
 
-- **Agent Kernel**: Unified architecture for all agents including reasoning, reflection, and self-evaluation.
-- **Event-Driven Orchestration**: Agents react automatically to changes via an Event Bus.
-- **Model Routing Arbitration**: Explicit separation of concerns between the **Intelligence Layer** (defines required model requirements: reasoning depth, vision support, context) and the **Optimization Layer** (selects the most cost-effective provider/model from the registry meeting those requirements).
-- **Lifecycle Feedback Loops**: State machine implementation of **Retrying** (for transient failures) and **Refining** (triggering strategy re-planning after exhaustion of retries) back-edges.
-- **Three-Gate Governance**: Mandatory validation gates at three critical points: **Request Validation** (risk scoring), **Pre-execution Check** (permissions), and **Post-execution Safety Check** (output scanning/alignment).
-- **Tiered Memory Consolidation**: Task-scoped **Working Memory**, LRU-based **Short-term Memory** with promotion thresholds, and persistent **Long-term Memory** archive.
-- **Autonomous Improvement Loop**: Continuous cycle of Observe -> Analyze -> Plan -> Execute -> Verify -> Reflect -> Optimize.
+- **Agent Kernel**: Unified architecture for all agents including multi-tier memory retrieval, automated tool execution, and self-evaluation.
+- **Intelligent Orchestration**: Event-driven engine that routes tasks to agents based on registered capabilities and manages subtask lifecycles.
+- **Three-Gate Governance**: Mandatory validation gates: **Request Validation** (Risk scoring), **Pre-execution Check** (IAM/RBAC), and **Post-execution Safety Check** (Data scanning).
+- **HITL Integration**: Native support for pausing high-risk tasks for human approval via a dedicated registry.
+- **System-Wide Traceability**: Every request is assigned a unique traceId at the gateway, propagated through all orchestration and execution spans.
+- **Extensible Plugin System**: Formal lifecycle for adding system-wide capabilities like performance metrics aggregation.
+- **Performance Optimization**: Integrated semantic caching and dynamic model selection based on reasoning depth and cost requirements.
 
 ## Project Structure
 
@@ -38,19 +38,19 @@ src/
 ├── connectors/    # SaaS connectors (Slack, GitHub)
 ├── contracts/     # Well-defined TypeScript interfaces (Contract-First)
 ├── evaluation/    # AI Performance Evaluation
-├── gateway/       # API Gateway and authentication
-├── governance/    # Policy Engine, Risk Assessment, and IAM
+├── gateway/       # API Gateway with Rate Limiting and Traceability
+├── governance/    # Policy Engine, HITL Registry, and IAM
 ├── intelligence/  # Model Router, Planner, Reasoner
-├── knowledge/     # Vector DB and Knowledge Graph connectors
+├── knowledge/     # Vector DB (Semantic search) and Knowledge Graph
 ├── memory/        # Tiered memory (Working, Short-term, Long-term)
-├── observation/   # Metrics, Logging, and Traces
-├── optimization/  # Cost and latency optimization
+├── observation/   # Metrics, Logging, and Distributed Tracing
+├── optimization/  # Cost/Latency optimization and Semantic Cache
 ├── orchestration/ # Event Bus, Scheduler, and Agent Engine
-├── plugins/       # Extensible plugin system
-├── registry/      # Capability Registries (Agents, Tools, Models)
+├── plugins/       # Extensible plugin system (Metrics implementation)
+├── registry/      # Capability Registries (Agents, Tools, Models, Plugins)
 ├── sdk/           # Extension SDKs for Agents and Plugins
 ├── types/         # Core TypeScript types and event schemas
-└── tests/         # Integration and unit tests
+└── tests/         # Comprehensive integration and unit tests
 ```
 
 ## Getting Started
@@ -86,6 +86,6 @@ const agent = new AgentKernel({
   policyEngine: new PolicyEngine()
 });
 
-// Execute tasks with integrated arbitration, feedback loops, and governance gates
+// Execute tasks with integrated memory, tools, and governance
 await agent.execute(task);
 ```
