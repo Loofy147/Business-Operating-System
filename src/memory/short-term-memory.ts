@@ -62,7 +62,7 @@ export class ShortTermMemory {
   private async checkPromotion(id: string): Promise<void> {
     const entry = this.entries.get(id);
     if (entry && this.longTermMemory) {
-      if (entry.importance >= this.importanceThreshold || entry.accessCount >= this.accessThreshold) {
+      if ((entry.importance || 0) >= this.importanceThreshold || entry.accessCount >= this.accessThreshold) {
         await this.longTermMemory.store(id, entry.content);
       }
     }

@@ -38,5 +38,8 @@ describe('AI-BOS Integration (Contract-based)', () => {
     expect(graph.getTask('t1')?.status).toBe('completed');
     expect(events).toContain('TaskStarted');
     expect(events).toContain('TaskCompleted');
+
+    // Small delay to let any internal state transitions finish
+    await new Promise(resolve => setTimeout(resolve, 50));
   });
 });

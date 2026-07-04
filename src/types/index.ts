@@ -56,7 +56,8 @@ export interface ModelConfig {
 export interface ExecutionResult {
   success: boolean;
   output: any;
-  error?: string;
+  error?: string | undefined;
+  subtasks?: Task[];
   metrics: {
     latency: number;
     tokens: number;

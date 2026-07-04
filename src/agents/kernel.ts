@@ -1,8 +1,12 @@
+import { DistributedTracing } from "../observation/distributed-tracing";
+import { globalMetrics } from "../observation/metrics-collector";
+import { EvaluatorEngine } from "../evaluation/evaluator-engine";
 import { AgentId, Goal, AgentMetadata, ExecutionResult, Task, ModelConfig, PolicyValidationResult } from '../types';
 import { IAgent, AgentState } from '../contracts/agent';
 import { IPlanner, IReasoner, IModelRouter } from '../contracts/intelligence';
 import { IModelOptimizer } from '../contracts/optimization';
 import { IPolicyEngine } from '../contracts/governance';
+import { IKnowledgeSource } from '../contracts/knowledge';
 import { ShortTermMemory } from '../memory/short-term-memory';
 import { WorkingMemory } from '../memory/working-memory';
 import { LongTermMemory } from '../memory/long-term-memory';
@@ -26,6 +30,7 @@ export class AgentKernel implements IAgent {
   private modelRouter: IModelRouter | undefined;
   private modelOptimizer: IModelOptimizer | undefined;
   private policyEngine: IPolicyEngine | undefined;
+  private knowledgeSource: IKnowledgeSource | undefined;
 
   constructor(metadata: AgentMetadata, components?: {
     planner?: IPlanner,
@@ -33,7 +38,8 @@ export class AgentKernel implements IAgent {
     eventBus?: IEventBus,
     modelRouter?: IModelRouter,
     modelOptimizer?: IModelOptimizer,
-    policyEngine?: IPolicyEngine
+    policyEngine?: IPolicyEngine,
+    knowledgeSource?: IKnowledgeSource
   }) {
     this.metadata = metadata;
     this.planner = components?.planner;
@@ -42,6 +48,7 @@ export class AgentKernel implements IAgent {
     this.modelRouter = components?.modelRouter;
     this.modelOptimizer = components?.modelOptimizer;
     this.policyEngine = components?.policyEngine;
+    this.knowledgeSource = components?.knowledgeSource;
     this.shortTermMemory = new ShortTermMemory(this.longTermMemory);
   }
 
@@ -107,7 +114,15 @@ export class AgentKernel implements IAgent {
   async reason(context: any): Promise<string> {
     this.setState(AgentState.Reasoning);
     this.publishEvent(EventType.ReasoningStarted, { context });
-    const result = this.reasoner ? await this.reasoner.reason(context) : "Standard reasoning";
+
+    let augmentedContext = context;
+    if (this.knowledgeSource && typeof context === 'object' && (context as any).description) {
+        console.log(`[${this.metadata.name}] Retrieving knowledge for RAG`);
+        const knowledge = await this.knowledgeSource.query((context as any).description);
+        augmentedContext = { ...context, retrievedKnowledge: knowledge };
+    }
+
+    const result = this.reasoner ? await this.reasoner.reason(augmentedContext) : "Standard reasoning";
     this.publishEvent(EventType.ReasoningCompleted, { result });
     return result;
   }
@@ -123,6 +138,9 @@ export class AgentKernel implements IAgent {
   }
 
   async execute(task: Task): Promise<ExecutionResult> {
+    const traceId = (task as any).trace_id || Math.random().toString(36).substring(7);
+    const executeSpan = DistributedTracing.startSpan(traceId, "AgentKernel.execute");
+
     this.selectModel(task);
 
     // Task-scoped memory setup
@@ -155,7 +173,8 @@ export class AgentKernel implements IAgent {
 
       // Placeholder for actual execution logic
       const success = Math.random() > 0.2;
-      const output = (task as any).testOutput || (success ? "Task completed successfully" : "Task failed");
+      const reasoning = await this.reason(task);
+      const output = (task as any).testOutput || (success ? `Task completed successfully: ${reasoning}` : "Task failed");
 
       result = {
         success,
@@ -182,16 +201,25 @@ export class AgentKernel implements IAgent {
       }
 
       this.setState(AgentState.Validation);
+      if (result.success) {
+        const evalResult = EvaluatorEngine.evaluate(result.output, []);
+        console.log(`[${this.metadata.name}] Evaluation Score: ${evalResult.accuracy}`);
+        if (evalResult.accuracy < 0.6) {
+          console.log(`[${this.metadata.name}] Low accuracy detected, marking as failure for retry`);
+          result.success = false;
+          result.error = "Low accuracy result";
+        }
+      }
 
       if (!result.success) {
         if (attempts < maxAttempts) {
           console.log(`[${this.metadata.name}] Execution failed, retrying (attempt ${attempts}/${maxAttempts})`);
           this.setState(AgentState.Retrying);
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, 10));
         } else {
           console.log(`[${this.metadata.name}] Execution failed after max attempts, refining strategy`);
           this.setState(AgentState.Refining);
-          await this.plan(task);
+          result.subtasks = await this.plan(task);
         }
       }
     } while (!result.success && attempts < maxAttempts);
@@ -204,7 +232,13 @@ export class AgentKernel implements IAgent {
     // Explicit eviction of working memory
     this.workingMemory.clear();
 
-    setTimeout(() => this.setState(AgentState.Idle), 0);
+    this.setState(AgentState.Idle);
+
+    globalMetrics.recordMetric("task_execution_latency", result.metrics.latency, {
+        agentId: this.metadata.id,
+        success: result.success.toString()
+    });
+    DistributedTracing.endSpan(executeSpan);
 
     return result;
   }

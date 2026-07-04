@@ -53,6 +53,12 @@ export class AgentEngine {
 
         const result: ExecutionResult = await agent.execute(task);
 
+        if (result.subtasks && result.subtasks.length > 0) {
+          result.subtasks.forEach(st => {
+            st.dependencies = st.dependencies.map(depId => depId.startsWith("parent:") ? task.id : depId);
+            graph.addTask(st);
+          });
+        }
         if (result.success) {
           graph.updateTaskStatus(task.id, 'completed', result.output);
           this.eventBus.publish({

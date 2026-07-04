@@ -18,9 +18,10 @@ export class Scheduler implements IScheduler {
   }
 
   public cancelTask(taskId: string): void {
-    // PriorityQueue implementation needs filter for cancellation,
-    // for now we'll mock this by checking on pop if needed.
-    console.log(`[Scheduler] Cancel request for task: ${taskId}`);
+
+
+    console.log(`[Scheduler] Cancelling task: ${taskId}`);
+    this.queue.remove(task => task.id === taskId);
   }
 
   public handleFailure(taskId: string): boolean {

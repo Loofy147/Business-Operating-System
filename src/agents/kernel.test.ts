@@ -16,6 +16,11 @@ describe('AgentKernel', () => {
     });
   });
 
+  afterEach(async () => {
+    // Wait for internal state transitions
+    await new Promise(resolve => setTimeout(resolve, 100));
+  });
+
   it('should initialize in Idle state', () => {
     expect(kernel.state).toBe(AgentState.Idle);
   });
