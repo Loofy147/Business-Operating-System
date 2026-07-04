@@ -12,6 +12,8 @@ import { WorkingMemory } from '../memory/working-memory';
 import { LongTermMemory } from '../memory/long-term-memory';
 import { IEventBus } from '../contracts/event';
 import { EventType } from '../types/events';
+import { SemanticCache } from '../optimization/cache-optimizer';
+import { hitlRegistry } from '../governance/hitl-registry';
 
 export class AgentKernel implements IAgent {
   public metadata: AgentMetadata;
@@ -31,6 +33,7 @@ export class AgentKernel implements IAgent {
   private modelOptimizer: IModelOptimizer | undefined;
   private policyEngine: IPolicyEngine | undefined;
   private knowledgeSource: IKnowledgeSource | undefined;
+  private semanticCache: SemanticCache = new SemanticCache();
 
   constructor(metadata: AgentMetadata, components?: {
     planner?: IPlanner,
@@ -100,7 +103,20 @@ export class AgentKernel implements IAgent {
       }
       if (validation.requiresHITL) {
         console.log(`[${this.metadata.name}] Task requires HITL approval: ${validation.reason}`);
-        // Placeholder for HITL wait logic
+        const requestId = hitlRegistry.createRequest(task.id, this.metadata.id, validation.reason || 'High risk score');
+
+        // Real HITL wait logic (simulated async polling)
+        let status = hitlRegistry.getStatus(requestId);
+        while (status === 'pending') {
+            console.log(`[${this.metadata.name}] Waiting for HITL approval for request ${requestId}...`);
+            await new Promise(resolve => setTimeout(resolve, 50));
+            // In a real system, this would be an event-driven wait
+            status = hitlRegistry.getStatus(requestId);
+            if (status === 'rejected') {
+                throw new Error("Task rejected by human operator");
+            }
+        }
+        console.log(`[${this.metadata.name}] HITL approval received for task ${task.id}`);
       }
     }
 
@@ -112,6 +128,15 @@ export class AgentKernel implements IAgent {
   }
 
   async reason(context: any): Promise<string> {
+    const contextKey = typeof context === 'string' ? context : JSON.stringify(context);
+
+    // Semantic Cache Lookup
+    const cachedResult = this.semanticCache.get(contextKey);
+    if (cachedResult) {
+      console.log(`[${this.metadata.name}] Semantic cache hit for reasoning`);
+      return cachedResult;
+    }
+
     this.setState(AgentState.Reasoning);
     this.publishEvent(EventType.ReasoningStarted, { context });
 
@@ -123,6 +148,10 @@ export class AgentKernel implements IAgent {
     }
 
     const result = this.reasoner ? await this.reasoner.reason(augmentedContext) : "Standard reasoning";
+
+    // Update Semantic Cache
+    this.semanticCache.set(contextKey, result);
+
     this.publishEvent(EventType.ReasoningCompleted, { result });
     return result;
   }
