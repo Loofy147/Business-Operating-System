@@ -19,53 +19,61 @@ Implemented in `src/agents/kernel.ts`, the kernel handles:
 - **Lifecycle Management**: State machine ensuring predictable execution with integrated feedback loops.
 - **Governance Gates**: Explicit calls to Request Validation, Pre-execution, and Post-execution gates.
 - **Tiered Memory**: Integrated management of Working (task-scoped), Short-term (LRU), and Long-term (archival) memory.
+- **Automated Tool Execution**: Dynamic identification and execution of tools from the registry based on task context.
 
 ### 2. Orchestration Layer
-- **Scheduler**: Priority-based task management with retry logic.
+- **Scheduler**: Priority-based task management with retry logic and cancellation support.
 - **Event Bus**: Centralized event distribution and observation.
 - **Workflow Engine**: Management of complex multi-agent task dependencies.
+- **Agent Engine**: Orchestrates execution with capability-based routing and formal plugin lifecycle management.
 
 ### 3. Intelligence Layer
 - **Model Router**: Translates tasks into `ModelRequirements` (reasoning depth, vision, context window).
-- **Planning & Reasoning**: Specialized modules for decomposing tasks and generating logical outputs.
+- **Planning & Reasoning**: Specialized modules for decomposing tasks and generating logical outputs. Now keyword-aware for specific domains (Financial, Research, Debugging).
 
 ### 4. Knowledge & Memory Layer
 - **Memory Tier Consolidation Policy**:
     - **Working Memory**: Ephemeral, task-scoped; explicitly cleared upon `Finished` state.
     - **Short-term Memory**: Session history with LRU eviction (limit 100) and promotion to LTM based on importance (>=8) or access frequency (>=5).
-    - **Long-term Memory**: Persistent semantic storage for organizational knowledge.
+    - **Long-term Memory**: Persistent semantic storage for organizational knowledge (VectorStore).
+- **Multi-Tier Retrieval**: Reasoning flow queries all tiers to ensure full context awareness.
 
 ### 5. Governance & Security
 - **Three-Gate Validation**:
     1. **Request Validation**: Pre-planning risk assessment and restricted keyword check.
-    2. **Pre-execution Check**: Verification of tool access and operational context.
+    2. **Pre-execution Check**: Verification of tool access and IAM role-based permissions.
     3. **Post-execution Safety Check**: Scanning outputs for sensitive data exposure or alignment failure.
-- **Risk Assessment Taxonomy**: Evaluates Privacy, Operational, Financial, and Safety dimensions (1-5 scale). Tasks with total score > 12 or any single score >= 4 trigger mandatory HITL.
+- **HITL Registry**: Dedicated system for managing human-in-the-loop approvals for high-risk tasks.
+- **IAM**: Identity and Access Management enforcing `admin` vs `user` permissions.
 
-## Phase 2 Implementation Status
+## Implementation Status
 
+### Phase 2: Structural Integrity
 - [x] **Capability Registries**: Agents, Tools, Models, and Plugins registries implemented.
 - [x] **Model Arbitration**: Separated requirements definition from model selection.
 - [x] **Lifecycle Feedback Loops**: Added Retrying and Refining states with functional back-edges.
-- [x] **Three-Gate Governance**: Integrated risk assessment and safety checks into the kernel flow.
-- [x] **Tiered Memory Consolidation**: Implemented LRU eviction and promotion thresholds.
-- [x] **Advanced Scheduling**: Priority-based orchestration with task cancellation and dynamic subtask scheduling.
-- [x] **AI Evaluation Framework**: Automated scoring of reasoning quality and accuracy integrated into agent lifecycle.
-- [x] **Extension SDKs**: Initial SDKs for Agents and Plugins defined.
-- [x] **Knowledge Layer Enhancements**: Semantic search via VectorStore and pathfinding/relation queries in KnowledgeGraph.
-- [x] **Retrieval-Augmented Reasoning (RAG)**: AgentKernel integrated with knowledge sources for augmented context reasoning.
-- [x] **Integrated Observability**: Distributed tracing spans and metrics collection (latency/success) embedded in agent lifecycle.
+- [x] **Advanced Scheduling**: Priority-based orchestration with task cancellation.
+
+### Phase 3: Core Hardening & Real Value (Current)
+- [x] **Multi-Tier Memory Retrieval**: Reasoning now queries Working, Short-term, and Long-term memory.
+- [x] **Intelligent Task Routing**: AgentEngine performs capability-based matching via the registry.
+- [x] **HITL Signaling**: Functional registry and kernel integration for high-risk approvals.
+- [x] **Plugin Lifecycle**: Formal initialization and event-bus hook system for extensions.
+- [x] **System-Wide Traceability**: Gateway-generated traceIds propagated through entire lifecycle.
+- [x] **IAM Enforcement**: Active RBAC checks in PolicyEngine gates.
+- [x] **Rate Limiting**: Session-based request control in the Gateway.
+- [x] **Semantic Optimization**: Integrated SemanticCache into the reasoning flow.
 
 ## Data Flow
-1. **User Request** -> Gateway
+1. **User Request** -> Gateway (Generates `trace_id`, Checks `RateLimit`)
 2. **Gateway** -> Policy Engine (**Gate 1: Request Validation**)
-3. **Policy Engine** -> Executive Agent (**Planning**)
+3. **Policy Engine** -> Executive Agent (**Planning** - may wait for **HITL**)
 4. **Planner** -> Task Queue (**Scheduler**)
-5. **Scheduler** -> Agent Engine -> Specialist Agent
-6. **Specialist Agent** -> Policy Engine (**Gate 2: Pre-execution Check**)
+5. **Scheduler** -> Agent Engine -> Specialist Agent (Capability-based Routing)
+6. **Specialist Agent** -> Policy Engine (**Gate 2: Pre-execution Check** - Checks **IAM**)
 7. **Policy Engine** -> Specialist Agent (**Lifecycle Execution**: Reasoning -> Tool Execution)
 8. **Specialist Agent** -> Policy Engine (**Gate 3: Post-execution Safety Check**)
 9. **Policy Engine** -> Result -> **Validation** (Pass/Fail)
     - If Fail -> **Retrying** (Loop to Execution) or **Refining** (Loop to Planning)
-10. **Validation Pass** -> **Reflection** -> **Memory Update** -> **Orchestrator**
+10. **Validation Pass** -> **Reflection** -> **Memory Update** (Tier Promotion) -> **Orchestrator**
 11. **Orchestrator** -> **Result** -> User
