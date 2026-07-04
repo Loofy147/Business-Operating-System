@@ -3,11 +3,10 @@ import { Task } from '../types';
 export class Gateway {
   private activeSessions: Set<string> = new Set();
   private requestCounts: Map<string, { count: number, lastReset: number }> = new Map();
-  private readonly RATE_LIMIT = 5; // max 5 requests per window
-  private readonly WINDOW_MS = 60000; // 1 minute window
+  private readonly RATE_LIMIT = 5;
+  private readonly WINDOW_MS = 60000;
 
   public authenticate(token: string): boolean {
-    // Mock authentication
     if (token === 'secret-token') {
       this.activeSessions.add('user-1');
       return true;
@@ -24,7 +23,13 @@ export class Gateway {
         throw new Error('Rate limit exceeded. Please try again later.');
     }
 
-    console.log(`Routing task ${task.id} through gateway for session ${sessionId}`);
+    // System-wide Traceability: Ensure every task has a traceId from the gateway
+    if (!(task as any).trace_id) {
+        (task as any).trace_id = `trace-${Math.random().toString(36).substring(7)}`;
+        console.log(`[Gateway] Generated new traceId: ${(task as any).trace_id}`);
+    }
+
+    console.log(`[Gateway] Routing task ${task.id} through gateway for session ${sessionId}`);
     return 'orchestrator-1';
   }
 

@@ -15,6 +15,7 @@ import { EventType } from '../types/events';
 import { SemanticCache } from '../optimization/cache-optimizer';
 import { hitlRegistry } from '../governance/hitl-registry';
 import { toolRegistry } from '../registry/capability-registry';
+import { VectorStore } from '../knowledge/vector-store';
 
 export class AgentKernel implements IAgent {
   public metadata: AgentMetadata;
@@ -52,7 +53,7 @@ export class AgentKernel implements IAgent {
     this.modelRouter = components?.modelRouter;
     this.modelOptimizer = components?.modelOptimizer;
     this.policyEngine = components?.policyEngine;
-    this.knowledgeSource = components?.knowledgeSource;
+    this.knowledgeSource = components?.knowledgeSource || new VectorStore();
     this.shortTermMemory = new ShortTermMemory(this.longTermMemory);
   }
 
@@ -131,7 +132,7 @@ export class AgentKernel implements IAgent {
   async reason(context: any): Promise<string> {
     const contextKey = typeof context === 'string' ? context : JSON.stringify(context);
 
-    // Semantic Cache Lookup
+    // 1. Semantic Cache Lookup
     const cachedResult = this.semanticCache.get(contextKey);
     if (cachedResult) {
       console.log(`[${this.metadata.name}] Semantic cache hit for reasoning`);
@@ -141,11 +142,18 @@ export class AgentKernel implements IAgent {
     this.setState(AgentState.Reasoning);
     this.publishEvent(EventType.ReasoningStarted, { context });
 
-    let augmentedContext = context;
-    if (this.knowledgeSource && typeof context === 'object' && (context as any).description) {
-        console.log(`[${this.metadata.name}] Retrieving knowledge for RAG`);
-        const knowledge = await this.knowledgeSource.query((context as any).description);
-        augmentedContext = { ...context, retrievedKnowledge: knowledge };
+    // 2. Multi-tier Context Retrieval
+    let augmentedContext = {
+        originalTask: context,
+        workingMemory: this.workingMemory.get('taskId'), // Ephemeral
+        recentHistory: this.shortTermMemory.getAllEntries().slice(-3), // Session context
+        retrievedKnowledge: []
+    };
+
+    const queryStr = typeof context === 'object' ? (context as any).description : context;
+    if (this.knowledgeSource && queryStr) {
+        console.log(`[${this.metadata.name}] Retrieving knowledge from LTM/VectorStore`);
+        augmentedContext.retrievedKnowledge = await this.knowledgeSource.query(queryStr);
     }
 
     const result = this.reasoner ? await this.reasoner.reason(augmentedContext) : "Standard reasoning";
@@ -184,7 +192,7 @@ export class AgentKernel implements IAgent {
       attempts++;
       this.setState(AgentState.ToolSelection);
 
-      // Identify required tools - more flexible matching
+      // Identify required tools
       const toolIds = toolRegistry.list();
       const requiredToolId = toolIds.find(id => {
           const parts = id.toLowerCase().split('-');
@@ -215,7 +223,6 @@ export class AgentKernel implements IAgent {
       if (tool) {
           console.log(`[${this.metadata.name}] Executing tool: ${tool.name}`);
           try {
-              // Mock tool arguments extraction
               const args = task.description.toLowerCase().includes('slack')
                 ? { channel: '#general', text: task.description }
                 : { owner: 'owner', repo: 'repo', title: task.description };
@@ -312,7 +319,7 @@ export class AgentKernel implements IAgent {
     this.shortTermMemory.add(
       Math.random().toString(),
       { result, timestamp: Date.now() },
-      result.success ? 5 : 2 // Successes are slightly more "important"
+      result.success ? 5 : 2
     );
 
     this.publishEvent(EventType.MemoryWrite, { result });
