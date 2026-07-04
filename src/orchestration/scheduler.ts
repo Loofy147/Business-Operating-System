@@ -18,8 +18,6 @@ export class Scheduler implements IScheduler {
   }
 
   public cancelTask(taskId: string): void {
-
-
     console.log(`[Scheduler] Cancelling task: ${taskId}`);
     this.queue.remove(task => task.id === taskId);
   }

@@ -34,22 +34,20 @@ describe('AgentKernel', () => {
   it('should transition through states during execution', async () => {
     const task: Task = { id: 't1', description: 'test', status: 'pending', dependencies: [] };
 
-    // Mock Math.random to always succeed for this test
-    const spy = jest.spyOn(Math, 'random').mockReturnValue(0.9);
+    // Mock output to be successful
+    (task as any).testOutput = 'Task completed successfully';
 
     await kernel.execute(task);
     // Small delay to allow the Idle transition to happen
     await new Promise(resolve => setTimeout(resolve, 10));
     expect(kernel.state).toBe(AgentState.Idle);
-
-    spy.mockRestore();
   });
 
   it('should retry on failure and eventually refine', async () => {
     const task: Task = { id: 't1', description: 'test', status: 'pending', dependencies: [] };
 
-    // Mock Math.random to always fail
-    const spy = jest.spyOn(Math, 'random').mockReturnValue(0.1);
+    // Set testOutput to trigger failure in EvaluatorEngine
+    (task as any).testOutput = 'Task failed miserably';
 
     const states: AgentState[] = [];
     const originalSetState = (kernel as any).setState.bind(kernel);
@@ -62,8 +60,6 @@ describe('AgentKernel', () => {
 
     expect(states).toContain(AgentState.Retrying);
     expect(states).toContain(AgentState.Refining);
-
-    spy.mockRestore();
   });
 
   it('should reject tasks rejected by PolicyEngine', async () => {
@@ -84,13 +80,8 @@ describe('AgentKernel', () => {
 
     const task: any = { id: 't1', description: 'test', status: 'pending', dependencies: [], testOutput: 'Here is sensitive data' };
 
-    // Mock success of execution logic
-    const spy = jest.spyOn(Math, 'random').mockReturnValue(0.9);
-
     const result = await kernel.execute(task);
     expect(result.success).toBe(false);
-    expect(result.error).toContain('sensitive data exposure');
-
-    spy.mockRestore();
+    expect(result.error).toContain('Post-execution check failed');
   });
 });

@@ -19,15 +19,25 @@ export class VectorStore implements IVectorStore {
     return results.map(r => r.metadata);
   }
 
+  public async query(query: string): Promise<any[]> {
+      console.log(`[VectorStore] Performing semantic search for: ${query}`);
+      // Mock vector generation (1536 dims) and search with a generic vector
+      return await this.search(new Array(1536).fill(0.1), 3);
+  }
+
   private cosineSimilarity(vecA: number[], vecB: number[]): number {
     let dotProduct = 0;
     let normA = 0;
     let normB = 0;
-    for (let i = 0; i < vecA.length; i++) {
-        dotProduct += (vecA[i] || 0) * (vecB[i] || 0);
-        normA += (vecA[i] || 0) * (vecA[i] || 0);
-        normB += (vecB[i] || 0) * (vecB[i] || 0);
+    const len = Math.max(vecA.length, vecB.length);
+    for (let i = 0; i < len; i++) {
+        const a = vecA[i] || 0;
+        const b = vecB[i] || 0;
+        dotProduct += a * b;
+        normA += a * a;
+        normB += b * b;
     }
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    const magnitude = Math.sqrt(normA) * Math.sqrt(normB);
+    return magnitude === 0 ? 0 : dotProduct / magnitude;
   }
 }

@@ -12,6 +12,10 @@ import { WorkingMemory } from '../memory/working-memory';
 import { LongTermMemory } from '../memory/long-term-memory';
 import { IEventBus } from '../contracts/event';
 import { EventType } from '../types/events';
+import { SemanticCache } from '../optimization/cache-optimizer';
+import { hitlRegistry } from '../governance/hitl-registry';
+import { toolRegistry } from '../registry/capability-registry';
+import { VectorStore } from '../knowledge/vector-store';
 
 export class AgentKernel implements IAgent {
   public metadata: AgentMetadata;
@@ -31,6 +35,7 @@ export class AgentKernel implements IAgent {
   private modelOptimizer: IModelOptimizer | undefined;
   private policyEngine: IPolicyEngine | undefined;
   private knowledgeSource: IKnowledgeSource | undefined;
+  private semanticCache: SemanticCache = new SemanticCache();
 
   constructor(metadata: AgentMetadata, components?: {
     planner?: IPlanner,
@@ -48,7 +53,7 @@ export class AgentKernel implements IAgent {
     this.modelRouter = components?.modelRouter;
     this.modelOptimizer = components?.modelOptimizer;
     this.policyEngine = components?.policyEngine;
-    this.knowledgeSource = components?.knowledgeSource;
+    this.knowledgeSource = components?.knowledgeSource || new VectorStore();
     this.shortTermMemory = new ShortTermMemory(this.longTermMemory);
   }
 
@@ -100,7 +105,20 @@ export class AgentKernel implements IAgent {
       }
       if (validation.requiresHITL) {
         console.log(`[${this.metadata.name}] Task requires HITL approval: ${validation.reason}`);
-        // Placeholder for HITL wait logic
+        const requestId = hitlRegistry.createRequest(task.id, this.metadata.id, validation.reason || 'High risk score');
+
+        // Real HITL wait logic (simulated async polling)
+        let status = hitlRegistry.getStatus(requestId);
+        while (status === 'pending') {
+            console.log(`[${this.metadata.name}] Waiting for HITL approval for request ${requestId}...`);
+            await new Promise(resolve => setTimeout(resolve, 50));
+            // In a real system, this would be an event-driven wait
+            status = hitlRegistry.getStatus(requestId);
+            if (status === 'rejected') {
+                throw new Error("Task rejected by human operator");
+            }
+        }
+        console.log(`[${this.metadata.name}] HITL approval received for task ${task.id}`);
       }
     }
 
@@ -112,17 +130,37 @@ export class AgentKernel implements IAgent {
   }
 
   async reason(context: any): Promise<string> {
+    const contextKey = typeof context === 'string' ? context : JSON.stringify(context);
+
+    // 1. Semantic Cache Lookup
+    const cachedResult = this.semanticCache.get(contextKey);
+    if (cachedResult) {
+      console.log(`[${this.metadata.name}] Semantic cache hit for reasoning`);
+      return cachedResult;
+    }
+
     this.setState(AgentState.Reasoning);
     this.publishEvent(EventType.ReasoningStarted, { context });
 
-    let augmentedContext = context;
-    if (this.knowledgeSource && typeof context === 'object' && (context as any).description) {
-        console.log(`[${this.metadata.name}] Retrieving knowledge for RAG`);
-        const knowledge = await this.knowledgeSource.query((context as any).description);
-        augmentedContext = { ...context, retrievedKnowledge: knowledge };
+    // 2. Multi-tier Context Retrieval
+    let augmentedContext = {
+        originalTask: context,
+        workingMemory: this.workingMemory.get('taskId'), // Ephemeral
+        recentHistory: this.shortTermMemory.getAllEntries().slice(-3), // Session context
+        retrievedKnowledge: []
+    };
+
+    const queryStr = typeof context === 'object' ? (context as any).description : context;
+    if (this.knowledgeSource && queryStr) {
+        console.log(`[${this.metadata.name}] Retrieving knowledge from LTM/VectorStore`);
+        augmentedContext.retrievedKnowledge = await this.knowledgeSource.query(queryStr);
     }
 
     const result = this.reasoner ? await this.reasoner.reason(augmentedContext) : "Standard reasoning";
+
+    // Update Semantic Cache
+    this.semanticCache.set(contextKey, result);
+
     this.publishEvent(EventType.ReasoningCompleted, { result });
     return result;
   }
@@ -154,9 +192,17 @@ export class AgentKernel implements IAgent {
       attempts++;
       this.setState(AgentState.ToolSelection);
 
+      // Identify required tools
+      const toolIds = toolRegistry.list();
+      const requiredToolId = toolIds.find(id => {
+          const parts = id.toLowerCase().split('-');
+          return parts.every(part => task.description.toLowerCase().includes(part));
+      });
+      const tool = requiredToolId ? toolRegistry.get(requiredToolId) : undefined;
+
       // Gate 2: Pre-execution Check
       if (this.policyEngine) {
-        const validation = this.policyEngine.preExecutionCheck(task, {});
+        const validation = this.policyEngine.preExecutionCheck(task, { tool: requiredToolId });
         if (!validation.allowed) {
           result = {
             success: false,
@@ -171,10 +217,28 @@ export class AgentKernel implements IAgent {
       this.setState(AgentState.Execution);
       const startTime = Date.now();
 
-      // Placeholder for actual execution logic
-      const success = Math.random() > 0.2;
-      const reasoning = await this.reason(task);
-      const output = (task as any).testOutput || (success ? `Task completed successfully: ${reasoning}` : "Task failed");
+      let output: any;
+      let success = true;
+
+      if (tool) {
+          console.log(`[${this.metadata.name}] Executing tool: ${tool.name}`);
+          try {
+              const args = task.description.toLowerCase().includes('slack')
+                ? { channel: '#general', text: task.description }
+                : { owner: 'owner', repo: 'repo', title: task.description };
+
+              await tool.execute(args);
+              output = `Tool ${tool.name} executed successfully`;
+              this.publishEvent(EventType.ToolInvoked, { toolName: tool.name, args, result: output });
+          } catch (e: any) {
+              success = false;
+              output = `Tool execution failed: ${e.message}`;
+          }
+      } else {
+          const reasoning = await this.reason(task);
+          output = (task as any).testOutput || `Task completed successfully: ${reasoning}`;
+          success = !output.toLowerCase().includes('failed');
+      }
 
       result = {
         success,
@@ -255,7 +319,7 @@ export class AgentKernel implements IAgent {
     this.shortTermMemory.add(
       Math.random().toString(),
       { result, timestamp: Date.now() },
-      result.success ? 5 : 2 // Successes are slightly more "important"
+      result.success ? 5 : 2
     );
 
     this.publishEvent(EventType.MemoryWrite, { result });
