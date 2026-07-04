@@ -4,9 +4,9 @@ import { IEventBus } from '../contracts/event';
 import { WorkflowGraph } from './workflow-graph';
 import { Task, ExecutionResult } from '../types';
 import { EventType } from '../types/events';
+import { agentRegistry } from '../registry/capability-registry';
 
 export class AgentEngine {
-  private agents: Map<string, IAgent> = new Map();
   private scheduler: IScheduler;
   private eventBus: IEventBus;
 
@@ -16,7 +16,7 @@ export class AgentEngine {
   }
 
   public registerAgent(agent: IAgent): void {
-    this.agents.set(agent.metadata.id, agent);
+    agentRegistry.register(agent.metadata.id, agent);
   }
 
   public async runWorkflow(graph: WorkflowGraph): Promise<void> {
@@ -95,8 +95,17 @@ export class AgentEngine {
 
   private findBestAgentForTask(task: Task): IAgent | undefined {
     if (task.assignedTo) {
-      return this.agents.get(task.assignedTo);
+      return agentRegistry.get(task.assignedTo);
     }
-    return Array.from(this.agents.values())[0];
+
+    const agents = agentRegistry.list().map(id => agentRegistry.get(id)!);
+
+    // Simple capability matching
+    const matchingAgent = agents.find(agent => {
+        const description = task.description.toLowerCase();
+        return agent.metadata.capabilities.some(cap => description.includes(cap.toLowerCase()));
+    });
+
+    return matchingAgent || agents[0];
   }
 }

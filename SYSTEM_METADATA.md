@@ -9,24 +9,26 @@ This document provides a comprehensive map of the AI-BOS architecture's contract
 - **AgentState**: Enum (Idle, Planning, Reasoning, ToolSelection, Execution, Reflection, Validation, MemoryUpdate, Refining, Retrying, Finished).
 
 ### Intelligence Layer
-- **IPlanner**: Decomposes tasks into subtasks.
-- **IReasoner**: Processes inputs to generate logical conclusions.
+- **IPlanner**: Decomposes tasks into subtasks using keyword-aware logic.
+- **IReasoner**: Processes inputs to generate context-aware conclusions (Financial, Debugging, Research).
 - **IModelRouter**: Selects `ModelRequirements` based on task complexity.
 
 ### Orchestration Layer
-- **IScheduler**: Manages task queuing and prioritization.
+- **IScheduler**: Manages task queuing and prioritization with cancellation support.
 - **IEventBus**: Centralized event distribution (Publish/Subscribe).
 - **IWorkflow**: Manages sets of tasks and their dependencies.
+- **AgentEngine**: Orchestrates task execution with capability-based agent routing.
 
 ### Governance & Optimization
 - **IPolicyEngine**: Implements Three-Gate validation (Request, Pre-execution, Post-execution).
-- **IModelOptimizer**: Selects specific `ModelConfig` based on requirements.
-- **IOptimizer**: Generic optimization interface.
+- **IModelOptimizer**: Selects specific `ModelConfig` from the registry based on requirements.
+- **HITLRegistry**: Manages Human-In-The-Loop approval requests and status.
 
 ### Knowledge & Memory
-- **IKnowledgeSource**: Interface for querying external knowledge.
+- **IKnowledgeSource**: Interface for querying external knowledge (RAG).
 - **IVectorStore**: Semantic search and storage.
-- **ITool**: Executable capabilities for agents.
+- **ITool**: Executable capabilities (Slack, GitHub connectors integrated).
+- **SemanticCache**: Caches reasoning results to optimize latency and cost.
 
 ## Core Data Types
 
@@ -45,15 +47,11 @@ This document provides a comprehensive map of the AI-BOS architecture's contract
 ## System Metadata
 
 ### Registered Agents
-- Standard Kernel: `AgentKernel`
+- Standard Kernel: `AgentKernel` (HITL-aware, Cache-integrated)
 - Specialist SDK: `AgentSDK`
 
 ### System Capabilities (Registries)
-- **AgentRegistry**: Tracks available specialist agents.
-- **ToolRegistry**: Tracks available connectors and internal tools.
-- **ModelRegistry**: Tracks supported LLMs and providers.
+- **AgentRegistry**: Strictly typed `IAgent` registry for dynamic routing.
+- **ToolRegistry**: Strictly typed `ITool` registry (SaaS Connectors registered).
+- **ModelRegistry**: Strictly typed `ModelConfig` registry for cost/performance optimization.
 - **PluginRegistry**: Tracks extensible system additions.
-
-### Event Schema
-- **EventType**: (TaskCreated, TaskAssigned, TaskStarted, TaskCompleted, TaskFailed, ToolInvoked, MemoryRead, MemoryWrite, ReasoningStarted, ReasoningCompleted, PolicyViolation, CostExceeded).
-- **IEvent**: `{ id, type, timestamp, trace_id, agent_id, payload, metadata }`
