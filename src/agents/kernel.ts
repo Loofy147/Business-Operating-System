@@ -14,6 +14,7 @@ import { IEventBus } from '../contracts/event';
 import { EventType } from '../types/events';
 import { SemanticCache } from '../optimization/cache-optimizer';
 import { hitlRegistry } from '../governance/hitl-registry';
+import { toolRegistry } from '../registry/capability-registry';
 
 export class AgentKernel implements IAgent {
   public metadata: AgentMetadata;
@@ -183,9 +184,17 @@ export class AgentKernel implements IAgent {
       attempts++;
       this.setState(AgentState.ToolSelection);
 
+      // Identify required tools - more flexible matching
+      const toolIds = toolRegistry.list();
+      const requiredToolId = toolIds.find(id => {
+          const parts = id.toLowerCase().split('-');
+          return parts.every(part => task.description.toLowerCase().includes(part));
+      });
+      const tool = requiredToolId ? toolRegistry.get(requiredToolId) : undefined;
+
       // Gate 2: Pre-execution Check
       if (this.policyEngine) {
-        const validation = this.policyEngine.preExecutionCheck(task, {});
+        const validation = this.policyEngine.preExecutionCheck(task, { tool: requiredToolId });
         if (!validation.allowed) {
           result = {
             success: false,
@@ -200,10 +209,29 @@ export class AgentKernel implements IAgent {
       this.setState(AgentState.Execution);
       const startTime = Date.now();
 
-      // Placeholder for actual execution logic
-      const success = Math.random() > 0.2;
-      const reasoning = await this.reason(task);
-      const output = (task as any).testOutput || (success ? `Task completed successfully: ${reasoning}` : "Task failed");
+      let output: any;
+      let success = true;
+
+      if (tool) {
+          console.log(`[${this.metadata.name}] Executing tool: ${tool.name}`);
+          try {
+              // Mock tool arguments extraction
+              const args = task.description.toLowerCase().includes('slack')
+                ? { channel: '#general', text: task.description }
+                : { owner: 'owner', repo: 'repo', title: task.description };
+
+              await tool.execute(args);
+              output = `Tool ${tool.name} executed successfully`;
+              this.publishEvent(EventType.ToolInvoked, { toolName: tool.name, args, result: output });
+          } catch (e: any) {
+              success = false;
+              output = `Tool execution failed: ${e.message}`;
+          }
+      } else {
+          const reasoning = await this.reason(task);
+          output = (task as any).testOutput || `Task completed successfully: ${reasoning}`;
+          success = !output.toLowerCase().includes('failed');
+      }
 
       result = {
         success,

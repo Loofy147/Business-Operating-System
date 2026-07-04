@@ -1,5 +1,6 @@
 import { Task, PolicyValidationResult, ExecutionResult, RiskAssessment } from '../types';
 import { IPolicyEngine } from '../contracts/governance';
+import { IAM, User } from './iam';
 
 export class PolicyEngine implements IPolicyEngine {
   private globalPolicies: string[] = [];
@@ -29,8 +30,21 @@ export class PolicyEngine implements IPolicyEngine {
   }
 
   public preExecutionCheck(task: Task, context: any): PolicyValidationResult {
-    // Check if the agent has permissions for the tools/resources it's about to use
     console.log('[PolicyEngine] Performing pre-execution check');
+
+    // IAM Integration: Check if the user (or agent acting as user) has permission for the resource
+    const mockUser: User = { id: 'agent-1', roles: ['user'] }; // In real system, this comes from context
+    const resource = context.tool || 'generic-execution';
+
+    const isAllowed = IAM.checkPermission(mockUser, resource, 'execute');
+
+    if (!isAllowed) {
+        return {
+            allowed: false,
+            reason: `IAM Violation: User ${mockUser.id} does not have permission to execute ${resource}`
+        };
+    }
+
     return { allowed: true };
   }
 

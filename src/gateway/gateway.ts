@@ -2,6 +2,9 @@ import { Task } from '../types';
 
 export class Gateway {
   private activeSessions: Set<string> = new Set();
+  private requestCounts: Map<string, { count: number, lastReset: number }> = new Map();
+  private readonly RATE_LIMIT = 5; // max 5 requests per window
+  private readonly WINDOW_MS = 60000; // 1 minute window
 
   public authenticate(token: string): boolean {
     // Mock authentication
@@ -12,8 +15,33 @@ export class Gateway {
     return false;
   }
 
-  public routeTask(task: Task): string {
-    console.log(`Routing task ${task.id} through gateway`);
+  public routeTask(task: Task, sessionId: string): string {
+    if (!this.activeSessions.has(sessionId)) {
+        throw new Error('Unauthorized session');
+    }
+
+    if (this.isRateLimited(sessionId)) {
+        throw new Error('Rate limit exceeded. Please try again later.');
+    }
+
+    console.log(`Routing task ${task.id} through gateway for session ${sessionId}`);
     return 'orchestrator-1';
+  }
+
+  private isRateLimited(sessionId: string): boolean {
+    const now = Date.now();
+    const sessionData = this.requestCounts.get(sessionId) || { count: 0, lastReset: now };
+
+    if (now - sessionData.lastReset > this.WINDOW_MS) {
+        sessionData.count = 1;
+        sessionData.lastReset = now;
+        this.requestCounts.set(sessionId, sessionData);
+        return false;
+    }
+
+    sessionData.count++;
+    this.requestCounts.set(sessionId, sessionData);
+
+    return sessionData.count > this.RATE_LIMIT;
   }
 }
