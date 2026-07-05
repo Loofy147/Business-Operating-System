@@ -4,19 +4,31 @@ export class VectorStore implements IVectorStore {
   private store: Map<string, { vector: number[], metadata: any }> = new Map();
 
   public async add(id: string, vector: number[], metadata: any): Promise<void> {
-    this.store.set(id, { vector, metadata });
+    // Optimization: Pre-normalize vectors on addition to speed up search
+    const normalizedVector = this.normalize(vector);
+    this.store.set(id, { vector: normalizedVector, metadata });
   }
 
   public async search(vector: number[], limit: number): Promise<any[]> {
-    const results = Array.from(this.store.values())
-      .map(entry => ({
-        ...entry,
-        score: this.cosineSimilarity(vector, entry.vector)
-      }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
+    // Optimization: Normalize query vector once per search
+    const normalizedQuery = this.normalize(vector);
+    const storeValues = Array.from(this.store.values());
+    const len = normalizedQuery.length;
 
-    return results.map(r => r.metadata);
+    const results = [];
+    for (let i = 0; i < storeValues.length; i++) {
+        const entry = storeValues[i]!;
+        const entryVector = entry.vector;
+        let score = 0;
+        for (let j = 0; j < len; j++) {
+            score += normalizedQuery[j]! * entryVector[j]!;
+        }
+        results.push({ metadata: entry.metadata, score });
+    }
+
+    results.sort((a, b) => b.score - a.score);
+
+    return results.slice(0, limit).map(r => r.metadata);
   }
 
   public async query(query: string): Promise<any[]> {
@@ -25,19 +37,17 @@ export class VectorStore implements IVectorStore {
       return await this.search(new Array(1536).fill(0.1), 3);
   }
 
-  private cosineSimilarity(vecA: number[], vecB: number[]): number {
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-    const len = Math.max(vecA.length, vecB.length);
-    for (let i = 0; i < len; i++) {
-        const a = vecA[i] || 0;
-        const b = vecB[i] || 0;
-        dotProduct += a * b;
-        normA += a * a;
-        normB += b * b;
+  private normalize(vector: number[]): number[] {
+    let sum = 0;
+    for (let i = 0; i < vector.length; i++) {
+        sum += vector[i]! * vector[i]!;
     }
-    const magnitude = Math.sqrt(normA) * Math.sqrt(normB);
-    return magnitude === 0 ? 0 : dotProduct / magnitude;
+    const norm = Math.sqrt(sum);
+    if (norm === 0) return vector;
+    const result = new Array(vector.length);
+    for (let i = 0; i < vector.length; i++) {
+        result[i] = vector[i]! / norm;
+    }
+    return result;
   }
 }
