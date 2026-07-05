@@ -1,13 +1,39 @@
 export class CapabilityRegistry<T> {
   private items: Map<string, T> = new Map();
+  private index: Map<string, Set<string>> = new Map();
 
   public register(id: string, item: T): void {
     console.log(`[Registry] Registering ${id}`);
     this.items.set(id, item);
+
+    // Dynamic indexing if item has metadata with capabilities
+    const anyItem = item as any;
+    if (anyItem.metadata && Array.isArray(anyItem.metadata.capabilities)) {
+        for (const cap of anyItem.metadata.capabilities) {
+            const normalizedCap = cap.toLowerCase();
+            if (!this.index.has(normalizedCap)) {
+                this.index.set(normalizedCap, new Set());
+            }
+            this.index.get(normalizedCap)!.add(id);
+        }
+    }
   }
 
   public get(id: string): T | undefined {
     return this.items.get(id);
+  }
+
+  public findByCapability(capability: string): T[] {
+      const normalizedCap = capability.toLowerCase();
+      const ids = this.index.get(normalizedCap);
+      if (!ids) return [];
+
+      const results: T[] = [];
+      for (const id of ids) {
+          const item = this.get(id);
+          if (item) results.push(item);
+      }
+      return results;
   }
 
   public list(): string[] {
