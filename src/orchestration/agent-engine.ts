@@ -159,11 +159,26 @@ export class AgentEngine {
     if (task.assignedTo) {
       return agentRegistry.get(task.assignedTo);
     }
-    const agents = agentRegistry.list().map(id => agentRegistry.get(id)!);
-    const matchingAgent = agents.find(agent => {
-        const description = task.description.toLowerCase();
-        return agent.metadata.capabilities.some(cap => description.includes(cap.toLowerCase()));
-    });
-    return matchingAgent || agents[0];
+
+    // Optimized lookup via capability index
+    const description = task.description.toLowerCase();
+    const possibleAgents: IAgent[] = [];
+
+    // Search for any capability keyword in the task description
+    const allCapabilities = (agentRegistry as any).index.keys();
+    for (const cap of allCapabilities) {
+        if (description.includes(cap)) {
+            const agents = agentRegistry.findByCapability(cap);
+            possibleAgents.push(...agents);
+        }
+    }
+
+    if (possibleAgents.length > 0) {
+        // Return the first match or use a more complex arbitration if needed
+        return possibleAgents[0];
+    }
+
+    const agents = agentRegistry.list();
+    return agents.length > 0 ? agentRegistry.get(agents[0]!) : undefined;
   }
 }
